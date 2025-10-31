@@ -1,0 +1,3 @@
+*.txt
+logs/
+fft_benchmark*

@@ -1,0 +1,126 @@
+[cuFFTDx] float,  N = 64, batch = 65536, FFTsPerBlock = 16, ElementsPerThread = 8
+Average time: 0.011 ms
+0.011216 ms
+
+
+------------------------------------------------------------------------------------------------
+
+
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 4096, batch = 65536, FFTsPerBlock = 1, ElementsPerThread = 16
+fft inputlength: 4096, fft block size 256, 1
+numRegs=64
+Shared memory size: 16384 bytes
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 1.470 ms
+1.469472 ms 
+
+
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 4096, batch = 65536, FFTsPerBlock = 1, ElementsPerThread = 8
+fft inputlength: 4096, fft block size 512, 1
+numRegs=39
+Shared memory size: 16384 bytes
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 1.614 ms
+
+------------------------------------------------------------------------------------------------
+
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 256, batch = 65536, FFTsPerBlock = 4, ElementsPerThread = 16
+fft inputlength: 256, fft block size 16, 4
+numRegs=63
+Shared memory size: 4096 bytes
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.053 ms
+
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 256, batch = 65536, FFTsPerBlock = 8, ElementsPerThread = 16
+fft inputlength: 256, fft block size 16, 8
+numRegs=63
+Shared memory size: 8192 bytes
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.055 ms
+
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 256, batch = 65536, FFTsPerBlock = 2, ElementsPerThread = 16
+fft inputlength: 256, fft block size 16, 2
+numRegs=72
+Shared memory size: 2048 bytes
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.053 ms
+
+------------------------------------------------------------------------------------------------
+
+
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 1024, batch = 65536, FFTsPerBlock = 1, ElementsPerThread = 16
+fft inputlength: 1024, fft block size 64, 1
+numRegs=64
+Shared memory size: 4096 bytes
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.290460 ms
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 1024, batch = 65536, FFTsPerBlock = 1, ElementsPerThread = 32
+fft inputlength: 1024, fft block size 32, 1
+numRegs=118
+Shared memory size: 8192 bytes
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.292252 ms
+
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 1024, batch = 65536, FFTsPerBlock = 2, ElementsPerThread = 16
+fft inputlength: 1024, fft block size 64, 2
+numRegs=64
+Shared memory size: 8192 bytes
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.292528 ms
+
+------------------------------------------------------------------------------------------------
+
+[cuFFTDx] 1D Batch FFT Type= 7__half2, N = 64, batch = 65536, FFTsPerBlock = 32, ElementsPerThread = 8
+fft inputlength: 64, fft block size 8, 16
+Average time: 0.005566 ms
+
+[cuFFTDx] 1D Batch FFT Type= 7__half2, N = 64, batch = 65536, FFTsPerBlock = 16, ElementsPerThread = 8
+fft inputlength: 64, fft block size 8, 8
+numRegs=40
+Shared memory size: 4096 bytes
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.005898 ms
+
+------------------------------------------------------------------------------------------------
+
+
+[cuFFTDx] 1D Batch FFT Type= 7__half2, N = 256, batch = 65536, FFTsPerBlock = 16, ElementsPerThread = 8
+fft inputlength: 256, fft block size 32, 8
+Average time: 0.029390 ms
+
+------------------------------------------------------------------------------------------------
+
+[cuFFTDx] 1D Batch FFT Type= 7__half2, N = 1024, batch = 65536, FFTsPerBlock = 2, ElementsPerThread = 16
+fft inputlength: 1024, fft block size 64, 1
+numRegs=83
+Shared memory size: 4096 bytes
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.130621 ms
+
+[cuFFTDx] 1D Batch FFT Type= 7__half2, N = 1024, batch = 65536, FFTsPerBlock = 4, ElementsPerThread = 16
+fft inputlength: 1024, fft block size 64, 2
+numRegs=83
+Shared memory size: 8192 bytes
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.130903 ms
+
+------------------------------------------------------------------------------------------------
+
+[cuFFTDx] 1D Batch FFT Type= 7__half2, N = 4096, batch = 65536, FFTsPerBlock = 2, ElementsPerThread = 16
+fft inputlength: 4096, fft block size 256, 1
+numRegs=80
+Shared memory size: 16384 bytes
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.612970 ms
