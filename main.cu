@@ -39,8 +39,11 @@ int main(int argc, char **argv) {
 
   std::vector<int> sizes;
   sizes.push_back(64);
-  // sizes.push_back(256);
-  // sizes.push_back(1024);
+  sizes.push_back(128);
+  sizes.push_back(256);
+  sizes.push_back(512);
+  sizes.push_back(1024);
+  sizes.push_back(2048);
   sizes.push_back(4096);
 
   int batch = 65536;
@@ -102,7 +105,7 @@ int main(int argc, char **argv) {
         break;
       }
     } else if (type == 1) {
-switch (N) {
+      switch (N) {
       case 64:
         cufftdx_1d_batched_h_results[64] =
             search_parameters<64, __half2, Arch>(batch);

@@ -4,7 +4,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--path", type=str, default="") 
-parser.add_argument("--target", type=str, default="cuDNN")
+parser.add_argument("--target", type=str, default="cuFFTDx")
 args = parser.parse_args()
 path = args.path
 target = args.target

@@ -15,14 +15,16 @@ Start validation
 Average time: 1.470 ms
 1.469472 ms 
 
+---------
 
-[cuFFTDx] 1D Batch FFT Type= 6float2, N = 4096, batch = 65536, FFTsPerBlock = 1, ElementsPerThread = 8
-fft inputlength: 4096, fft block size 512, 1
-numRegs=39
-Shared memory size: 16384 bytes
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 128, batch = 65536, FFTsPerBlock = 16, ElementsPerThread = 16
+fft inputlength: 128, fft block size 8, 16
+Shared memory size: 8192 bytes
 Start validation
 [cuFFTDx] Validation PASSED
-Average time: 1.614 ms
+Average time: 0.030256 ms
+
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 128, batch = 65536, FFTsPerBlock = 8, ElementsPerThread = 16
 
 ------------------------------------------------------------------------------------------------
 
@@ -51,6 +53,14 @@ Start validation
 Average time: 0.053 ms
 
 ------------------------------------------------------------------------------------------------
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 512, batch = 65536, FFTsPerBlock = 2, ElementsPerThread = 8
+fft inputlength: 512, fft block size 64, 2
+Shared memory size: 8192 bytes
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.126669 ms
+
+------------------------------------------------------------------------------------------------
 
 
 [cuFFTDx] 1D Batch FFT Type= 6float2, N = 1024, batch = 65536, FFTsPerBlock = 1, ElementsPerThread = 16
@@ -77,6 +87,17 @@ Start validation
 Average time: 0.292528 ms
 
 ------------------------------------------------------------------------------------------------
+
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 2048, batch = 65536, FFTsPerBlock = 1, ElementsPerThread = 16
+fft inputlength: 2048, fft block size 128, 1
+Shared memory size: 8192 bytes
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.630835 ms
+
+
+------------------------------------------------------------------------------------------------
+
 
 [cuFFTDx] 1D Batch FFT Type= 7__half2, N = 64, batch = 65536, FFTsPerBlock = 32, ElementsPerThread = 8
 fft inputlength: 64, fft block size 8, 16
@@ -124,3 +145,21 @@ Shared memory size: 16384 bytes
 Start validation
 [cuFFTDx] Validation PASSED
 Average time: 0.612970 ms
+
+------------------------------------------------------------------------------------------------
+
+
+Thread Level 
+N = 64 
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 64, thread num = 32, batch = 65536
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.008142 ms
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 64, thread num = 64, batch = 65536
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.008142 ms
+[cuFFTDx] 1D Batch FFT Type= 6float2, N = 64, thread num = 128, batch = 65536
+Start validation
+[cuFFTDx] Validation PASSED
+Average time: 0.008142 ms
