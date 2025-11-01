@@ -58,6 +58,8 @@ struct DataTypeToPrecision<__half2>
     using type = cufftdx::Precision<__half>;
 };
 
+// Ref: NVIDIA CUDALibrarySamples 
+// https://github.com/NVIDIA/CUDALibrarySamples/blob/main/MathDx/cuFFTDx/common/fp16_common.hpp
 namespace example
 {
     __device__ __host__ __forceinline__ cufftdx::complex<__half2> to_rrii(
@@ -92,6 +94,19 @@ namespace example
                 return __half2 {rrii.x.y, rrii.y.y};
         #endif
     }
+
+__device__ __host__ __forceinline__ cufftdx::complex<__half2> to_riri(
+        cufftdx::complex<__half2> rrii) {
+    #if (defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 530)
+        cufftdx::complex<__half2> riri(__lows2half2(rrii.x, rrii.y),
+                                       __highs2half2(rrii.x, rrii.y));
+    #else
+        cufftdx::complex<__half2> riri(__half2 {rrii.x.x, rrii.y.x},
+                                       __half2 {rrii.x.y, rrii.y.y});
+    #endif
+        return riri;
+    }
+
     template <class FFT>
     struct io_fp16
     {

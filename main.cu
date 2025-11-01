@@ -1,8 +1,9 @@
-#include <vector>
 #include <cstdio>
+#include <map>
+#include <vector>
 
-#include "cufftdx_benchmark.hpp"
 #include "cufft_benchmark.hpp"
+#include "cufftdx_benchmark.hpp"
 
 #ifndef ARCHNUM
 #define ARCHNUM 890
@@ -14,9 +15,21 @@ int main(int argc, char **argv) {
 
   // parse args -N for size
   int N = 0;
+  bool search = false;
+  bool e2e = false;
+  int type = 0; // 0: single, 1: double, 2: half
   for (int i = 1; i < argc; ++i) {
     if (std::string(argv[i]) == "-N" && i + 1 < argc) {
       N = atoi(argv[i + 1]);
+    }
+    if (std::string(argv[i]) == "--search") {
+      search = true;
+    }
+    if (std::string(argv[i]) == "--e2e") {
+      e2e = true;
+    }
+    if (std::string(argv[i]) == "--type" && i + 1 < argc) {
+      type = atoi(argv[i + 1]);
     }
   }
   // check regsPerBlock
@@ -29,26 +42,24 @@ int main(int argc, char **argv) {
   // sizes.push_back(256);
   // sizes.push_back(1024);
   sizes.push_back(4096);
-  
+
   int batch = 65536;
   // printf("\n======== cuFFT 1D (batch) ========\n");
-  std::vector<float> cufft_1d_batched_results;
-  std::vector<float> cufft_1d_batched_d_results;
-  std::vector<float> cufft_1d_batched_h_results;
+  std::map<int, float> cufft_1d_batched_results;
+  std::map<int, float> cufft_1d_batched_d_results;
+  std::map<int, float> cufft_1d_batched_h_results;
+  std::map<int, float> cufftdx_1d_batched_results;
+  std::map<int, float> cufftdx_1d_batched_d_results;
+  std::map<int, float> cufftdx_1d_batched_h_results;
 
-  // for (int N : sizes) {
-  //   cufft_1d_batched_results.push_back(benchmark_cufft_1d_batch<float2>(N, batch));
-  //   cufft_1d_batched_h_results.push_back(benchmark_cufft_1d_batch<__half2>(N, batch));
-  //   if (N < 16384)
-  //     cufft_1d_batched_d_results.push_back(benchmark_cufft_1d_batch<double2>(N, batch));
-  //   else
-  //     cufft_1d_batched_d_results.push_back(0.0f);
-  // }
-
-  // printf("\n======== cuFFT 2D (NxN) ========\n");
-  std::vector<float> cufft_2d_batched_results;
-  // for (int N : sizes)
-  //     cufft_2d_batched_results.push_back(benchmark_cufft_2d<float2>(N));
+  for (int n : sizes) {
+    cufft_1d_batched_results[n] = 0.0f;
+    cufft_1d_batched_d_results[n] = 0.0f;
+    cufft_1d_batched_h_results[n] = 0.0f;
+    cufftdx_1d_batched_results[n] = 0.0f;
+    cufftdx_1d_batched_d_results[n] = 0.0f;
+    cufftdx_1d_batched_h_results[n] = 0.0f;
+  }
 
   // Supported Functionality
   // C2C
@@ -58,90 +69,148 @@ int main(int argc, char **argv) {
   // double: N [2, 16384] (90)
   // https://docs.nvidia.com/cuda/cufftdx/requirements_func.html#functionality-label
   printf("\n======== cuFFTDx 1D (batch) ========\n");
+  if (search) {
+    if (type == 0) {
+      switch (N) {
+      case 64:
+        cufftdx_1d_batched_results[64] =
+            search_parameters<64, float2, Arch>(batch);
+        break;
+      case 128:
+        cufftdx_1d_batched_results[128] =
+            search_parameters<128, float2, Arch>(batch);
+        break;
+      case 256:
+        cufftdx_1d_batched_results[256] =
+            search_parameters<256, float2, Arch>(batch);
+        break;
+      case 512:
+        cufftdx_1d_batched_results[512] =
+            search_parameters<512, float2, Arch>(batch);
+        break;
+      case 1024:
+        cufftdx_1d_batched_results[1024] =
+            search_parameters<1024, float2, Arch>(batch);
+        break;
+      case 2048:
+        cufftdx_1d_batched_results[2048] =
+            search_parameters<2048, float2, Arch>(batch);
+        break;
+      case 4096:
+        cufftdx_1d_batched_results[4096] =
+            search_parameters<4096, float2, Arch>(batch);
+        break;
+      }
+    } else if (type == 1) {
+switch (N) {
+      case 64:
+        cufftdx_1d_batched_h_results[64] =
+            search_parameters<64, __half2, Arch>(batch);
+        break;
+      case 128:
+        cufftdx_1d_batched_h_results[128] =
+            search_parameters<128, __half2, Arch>(batch);
+        break;
+      case 256:
+        cufftdx_1d_batched_h_results[256] =
+            search_parameters<256, __half2, Arch>(batch);
+        break;
+      case 512:
+        cufftdx_1d_batched_h_results[512] =
+            search_parameters<512, __half2, Arch>(batch);
+        break;
+      case 1024:
+        cufftdx_1d_batched_h_results[1024] =
+            search_parameters<1024, __half2, Arch>(batch);
+        break;
+      case 2048:
+        cufftdx_1d_batched_h_results[2048] =
+            search_parameters<2048, __half2, Arch>(batch);
+        break;
+      case 4096:
+        cufftdx_1d_batched_h_results[4096] =
+            search_parameters<4096, __half2, Arch>(batch);
+        break;
+      }
+    }
+  } else {
+    if (type == 0) {
+      switch (N) {
+      case 64:
+        cufftdx_1d_batched_results[64] =
+            benchmark_cufftdx_1d_batch<64, float2, Arch>(batch, e2e);
+        break;
+      case 128:
+        cufftdx_1d_batched_results[128] =
+            benchmark_cufftdx_1d_batch<128, float2, Arch>(batch, e2e);
+        break;
+      case 256:
+        cufftdx_1d_batched_results[256] =
+            benchmark_cufftdx_1d_batch<256, float2, Arch>(batch, e2e);
+        break;
+      case 512:
+        cufftdx_1d_batched_results[512] =
+            benchmark_cufftdx_1d_batch<512, float2, Arch>(batch, e2e);
+        break;
+      case 1024:
+        cufftdx_1d_batched_results[1024] =
+            benchmark_cufftdx_1d_batch<1024, float2, Arch>(batch, e2e);
+        break;
+      case 2048:
+        cufftdx_1d_batched_results[2048] =
+            benchmark_cufftdx_1d_batch<2048, float2, Arch>(batch, e2e);
+        break;
+      case 4096:
+        cufftdx_1d_batched_results[4096] =
+            benchmark_cufftdx_1d_batch<4096, float2, Arch>(batch, e2e);
+        break;
+      }
+    }
+    if (type == 1) {
+      switch (N) {
+      case 64:
+        cufftdx_1d_batched_h_results[64] =
+            benchmark_cufftdx_1d_batch<64, __half2, Arch>(batch, e2e);
+        break;
+      case 128:
+        cufftdx_1d_batched_h_results[128] =
+            benchmark_cufftdx_1d_batch<128, __half2, Arch>(batch, e2e);
+        break;
+      case 256:
+        cufftdx_1d_batched_h_results[256] =
+            benchmark_cufftdx_1d_batch<256, __half2, Arch>(batch, e2e);
+        break;
+      case 512:
+        cufftdx_1d_batched_h_results[512] =
+            benchmark_cufftdx_1d_batch<512, __half2, Arch>(batch, e2e);
+        break;
+      case 1024:
+        cufftdx_1d_batched_h_results[1024] =
+            benchmark_cufftdx_1d_batch<1024, __half2, Arch>(batch, e2e);
+        break;
+      case 2048:
+        cufftdx_1d_batched_h_results[2048] =
+            benchmark_cufftdx_1d_batch<2048, __half2, Arch>(batch, e2e);
+        break;
+      case 4096:
+        cufftdx_1d_batched_h_results[4096] =
+            benchmark_cufftdx_1d_batch<4096, __half2, Arch>(batch, e2e);
+        break;
+      }
+    }
+  }
 
-  std::vector<float> cufftdx_1d_batched_results;
-  if (N == 64) {
-    // cufftdx_1d_batched_results.push_back(benchmark_cufftdx_1d_batch<64, float2, Arch>(batch));
-  }
-  // cufftdx_1d_batched_results.push_back(benchmark_cufftdx_1d_batch<128, float2, Arch>(batch));
-  if (N == 256){
-    // cufftdx_1d_batched_results.push_back(benchmark_cufftdx_1d_batch<256, float2, Arch>(batch));
-  }
-  // cufftdx_1d_batched_results.push_back(benchmark_cufftdx_1d_batch<512, float2, Arch>(batch));
-  if (N == 1024){
-    // cufftdx_1d_batched_results.push_back(benchmark_cufftdx_1d_batch<1024, float2, Arch>(batch));
-  }
-  // cufftdx_1d_batched_results.push_back(benchmark_cufftdx_1d_batch<2048, float2, Arch>(batch));
-  if (N == 4096){
-    // cufftdx_1d_batched_results.push_back(benchmark_cufftdx_1d_batch<4096, float2, Arch>(batch));
-  }
-  // cufftdx_1d_batched_results.push_back(benchmark_cufftdx_1d_batch<8192, float2, Arch>(batch));
-  // cufftdx_1d_batched_results.push_back(benchmark_cufftdx_1d_batch<16384, float2, Arch>(batch));
-
-  std::vector<float> cufftdx_1d_batched_d_results;
-  // cufftdx_1d_batched_d_results.push_back(benchmark_cufftdx_1d_batch<64, double2, Arch>(batch));
-  // cufftdx_1d_batched_d_results.push_back(benchmark_cufftdx_1d_batch<128, double2, Arch>(batch));
-  // cufftdx_1d_batched_d_results.push_back(benchmark_cufftdx_1d_batch<256, double2, Arch>(batch));
-  // cufftdx_1d_batched_d_results.push_back(benchmark_cufftdx_1d_batch<512, double2, Arch>(batch));
-  // cufftdx_1d_batched_d_results.push_back(benchmark_cufftdx_1d_batch<1024, double2, Arch>(batch));
-  // cufftdx_1d_batched_d_results.push_back(benchmark_cufftdx_1d_batch<2048, double2, Arch>(batch));
-  // cufftdx_1d_batched_d_results.push_back(benchmark_cufftdx_1d_batch<4096, double2, Arch>(batch));
-  // cufftdx_1d_batched_d_results.push_back(benchmark_cufftdx_1d_batch<8192, double2, Arch>(batch));
-  // if constexpr (Arch != 900) {
-  //   cufft_1d_batched_d_results.push_back(0.0f);
-  // } else {
-  //   cufftdx_1d_batched_d_results.push_back(benchmark_cufftdx_1d_batch<16384, double2, Arch>(batch));
-  // }
-
-  std::vector<float> cufftdx_1d_batched_h_results;
-  if (N == 64){
-    cufftdx_1d_batched_h_results.push_back(benchmark_cufftdx_1d_batch<64, __half2, Arch>(batch));
-  }
-  // cufftdx_1d_batched_h_results.push_back(benchmark_cufftdx_1d_batch<128, __half2, Arch>(batch));
-  if (N == 256){
-    cufftdx_1d_batched_h_results.push_back(benchmark_cufftdx_1d_batch<256, __half2, Arch>(batch));
-  }
-  // cufftdx_1d_batched_h_results.push_back(benchmark_cufftdx_1d_batch<256, __half2, Arch>(batch));
-  // cufftdx_1d_batched_h_results.push_back(benchmark_cufftdx_1d_batch<512, __half2, Arch>(batch));
-  if (N == 1024){
-    cufftdx_1d_batched_h_results.push_back(benchmark_cufftdx_1d_batch<1024, __half2, Arch>(batch));
-  }
-  // cufftdx_1d_batched_h_results.push_back(benchmark_cufftdx_1d_batch<1024, __half2, Arch>(batch));
-  // cufftdx_1d_batched_h_results.push_back(benchmark_cufftdx_1d_batch<2048, __half2, Arch>(batch));
-  if (N == 4096){
-    cufftdx_1d_batched_h_results.push_back(benchmark_cufftdx_1d_batch<4096, __half2, Arch>(batch));
-  }
-  // cufftdx_1d_batched_h_results.push_back(benchmark_cufftdx_1d_batch<8192, __half2, Arch>(batch));
-  // cufftdx_1d_batched_h_results.push_back(benchmark_cufftdx_1d_batch<16384, __half2, Arch>(batch));
-
-  for (size_t i = 0; i < sizes.size(); ++i) {
-    if (cufft_1d_batched_h_results.size() < sizes.size()) {
-      cufft_1d_batched_h_results.push_back(0.0f);
-    }
-    if (cufft_1d_batched_results.size() < sizes.size()) {
-      cufft_1d_batched_results.push_back(0.0f);
-    }
-    if (cufft_1d_batched_d_results.size() < sizes.size()) {
-      cufft_1d_batched_d_results.push_back(0.0f);
-    }
-    if (cufftdx_1d_batched_h_results.size() < sizes.size()) {
-      cufftdx_1d_batched_h_results.push_back(0.0f);
-    }
-    if (cufftdx_1d_batched_results.size() < sizes.size()) {
-      cufftdx_1d_batched_results.push_back(0.0f);
-    }
-    if (cufftdx_1d_batched_d_results.size() < sizes.size()) {
-      cufftdx_1d_batched_d_results.push_back(0.0f);
-    }
-  }
-
-  printf("Batch, N, cuFFT_1D_half, cuFFT_1D_single, cuFFT_1D_double,  cuFFTDx_1D_half, cuFFTDx_1D_single, "
+  printf("Batch, N, cuFFT_1D_half, cuFFT_1D_single, cuFFT_1D_double,  "
+         "cuFFTDx_1D_half, cuFFTDx_1D_single, "
          "cuFFTDx_1D_double\n");
   for (size_t i = 0; i < sizes.size(); ++i) {
     printf("%d, %d, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f\n", batch, sizes[i],
-           cufft_1d_batched_h_results[i], cufft_1d_batched_results[i], cufft_1d_batched_d_results[i], cufftdx_1d_batched_h_results[i],
-            cufftdx_1d_batched_results[i],
-           cufftdx_1d_batched_d_results[i]);
+           cufft_1d_batched_h_results[sizes[i]],
+           cufft_1d_batched_results[sizes[i]],
+           cufft_1d_batched_d_results[sizes[i]],
+           cufftdx_1d_batched_h_results[sizes[i]],
+           cufftdx_1d_batched_results[sizes[i]],
+           cufftdx_1d_batched_d_results[sizes[i]]);
   }
 
   return 0;
