@@ -132,14 +132,5 @@ void generate_input_data(__half2 *data, int size, int batch, int seed) {
       data[b * size + i] = make_half2( rand() * 1.0 / RAND_MAX, rand() * 1.0 / RAND_MAX);
     }
   }
-  // if (!implicit_batching) return;
-  // Implicit batching
-  // for (int b = 0; b < batch; b += 2){
-  //   for (int i = 0; i < size; ++i){
-  //     __half tmp = data[b * size + i].y;
-  //     data[b * size + i].y = data[(b+1) * size + i].x;
-  //     data[(b+1) * size + i].x = tmp;
-  //   }
-  // }
 }
 

@@ -107,6 +107,40 @@ __device__ __host__ __forceinline__ cufftdx::complex<__half2> to_riri(
         return riri;
     }
 
+   template<class FFT>  
+   struct io {
+
+    template<unsigned int EPT, typename DataType>
+        static inline __device__ void copy(const DataType* source, DataType* target, unsigned int n) {
+            unsigned int stride = blockDim.x * blockDim.y;
+            unsigned int index  = threadIdx.y * blockDim.x + threadIdx.x;
+            for (int i = 0; i < EPT; i++) {
+                if (index < n) {
+                    target[index] = source[index];
+                }
+                index += stride;
+            }
+        }
+
+    template<class DataType>
+        static inline __device__ void load_to_smem(const DataType* global, unsigned char* shared) {
+            using input_t = typename FFT::input_type;
+            copy<FFT::input_ept>(reinterpret_cast<const input_t*>(global),
+                                reinterpret_cast<input_t*>(shared),
+                                blockDim.y * FFT::input_length);
+            __syncthreads();
+        }
+
+    template<class DataType>
+        static inline __device__ void store_from_smem(const unsigned char* shared, DataType* global) {
+            __syncthreads();
+            using output_t = typename FFT::output_type;
+            copy<FFT::output_ept>(reinterpret_cast<const output_t*>(shared),
+                                 reinterpret_cast<output_t*>(global),
+                                 blockDim.y * FFT::output_length);
+        }
+   };
+
     template <class FFT>
     struct io_fp16
     {
