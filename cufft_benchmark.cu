@@ -9,7 +9,8 @@ struct Cufft2DContext {
 
 void cufft_2d_run(void *user_data) {
   Cufft2DContext *ctx = (Cufft2DContext *)user_data;
-  cufftExecC2C(ctx->plan, (cufftComplex *)ctx->input, (cufftComplex *)ctx->output, CUFFT_FORWARD);
+  cufftExecC2C(ctx->plan, (cufftComplex *)ctx->input,
+               (cufftComplex *)ctx->output, CUFFT_FORWARD);
 }
 
 void benchmark_cufft_2d(int N) {

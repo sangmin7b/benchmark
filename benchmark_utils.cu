@@ -49,14 +49,16 @@ float measure_kernel_time(BenchmarkFunc func, void *user_data, int repeat) {
   return total / repeat;
 }
 
-bool validate_output(float2 *ref, float2 *target, int size, const char *tag, float atol) {
+bool validate_output(float2 *ref, float2 *target, int size, const char *tag,
+                     float atol) {
   int errors = 0;
   for (int i = 0; i < size; ++i) {
     float diff_x = fabs(ref[i].x - target[i].x);
     float diff_y = fabs(ref[i].y - target[i].y);
     if (diff_x > atol || diff_y > atol) {
       if (++errors <= 5)
-        printf("[Mismatch:%s] idx=%d ref=(%.3f, %.3f) target=(%.3f, %.3f)\n", tag, i, ref[i].x, ref[i].y, target[i].x, target[i].y);
+        printf("[Mismatch:%s] idx=%d ref=(%.3f, %.3f) target=(%.3f, %.3f)\n",
+               tag, i, ref[i].x, ref[i].y, target[i].x, target[i].y);
     }
   }
   if (errors == 0) {
@@ -68,14 +70,16 @@ bool validate_output(float2 *ref, float2 *target, int size, const char *tag, flo
   }
 }
 
-bool validate_output(double2 *ref, double2 *target, int size, const char *tag, float atol) {
+bool validate_output(double2 *ref, double2 *target, int size, const char *tag,
+                     float atol) {
   int errors = 0;
   for (int i = 0; i < size; ++i) {
     float diff_x = fabs(ref[i].x - target[i].x);
     float diff_y = fabs(ref[i].y - target[i].y);
     if (diff_x > atol || diff_y > atol) {
       if (++errors <= 5)
-        printf("[Mismatch:%s] idx=%d ref=(%.3f, %.3f) target=(%.3f, %.3f)\n", tag, i, ref[i].x, ref[i].y, target[i].x, target[i].y);
+        printf("[Mismatch:%s] idx=%d ref=(%.3f, %.3f) target=(%.3f, %.3f)\n",
+               tag, i, ref[i].x, ref[i].y, target[i].x, target[i].y);
     }
   }
   if (errors == 0) {
@@ -87,15 +91,17 @@ bool validate_output(double2 *ref, double2 *target, int size, const char *tag, f
   }
 }
 
-
-bool validate_output(__half2 *ref, __half2 *target, int size, const char *tag, float atol) {
+bool validate_output(__half2 *ref, __half2 *target, int size, const char *tag,
+                     float atol) {
   int errors = 0;
   for (int i = 0; i < size; ++i) {
     float diff_x = fabs(__half2float(ref[i].x) - __half2float(target[i].x));
     float diff_y = fabs(__half2float(ref[i].y) - __half2float(target[i].y));
     if (diff_x > atol || diff_y > atol) {
       if (++errors <= 5)
-        printf("[Mismatch:%s] idx=%d ref=(%.3f, %.3f) target=(%.3f, %.3f)\n", tag, i, __half2float(ref[i].x), __half2float(ref[i].y), __half2float(target[i].x), __half2float(target[i].y));
+        printf("[Mismatch:%s] idx=%d ref=(%.3f, %.3f) target=(%.3f, %.3f)\n",
+               tag, i, __half2float(ref[i].x), __half2float(ref[i].y),
+               __half2float(target[i].x), __half2float(target[i].y));
     }
   }
   if (errors == 0) {
@@ -111,7 +117,8 @@ void generate_input_data(float2 *data, int size, int batch, int seed) {
   srand(seed);
   for (int b = 0; b < batch; ++b) {
     for (int i = 0; i < size; ++i) {
-      data[b * size + i] = make_float2(rand() * 1.0 / RAND_MAX, rand() * 1.0 / RAND_MAX);
+      data[b * size + i] =
+          make_float2(rand() * 1.0 / RAND_MAX, rand() * 1.0 / RAND_MAX);
     }
   }
 }
@@ -120,7 +127,8 @@ void generate_input_data(double2 *data, int size, int batch, int seed) {
   srand(seed);
   for (int b = 0; b < batch; ++b) {
     for (int i = 0; i < size; ++i) {
-      data[b * size + i] = make_double2(rand() * 1.0 / RAND_MAX, rand() * 1.0 / RAND_MAX);
+      data[b * size + i] =
+          make_double2(rand() * 1.0 / RAND_MAX, rand() * 1.0 / RAND_MAX);
     }
   }
 }
@@ -129,8 +137,8 @@ void generate_input_data(__half2 *data, int size, int batch, int seed) {
   srand(seed);
   for (int b = 0; b < batch; ++b) {
     for (int i = 0; i < size; ++i) {
-      data[b * size + i] = make_half2( rand() * 1.0 / RAND_MAX, rand() * 1.0 / RAND_MAX);
+      data[b * size + i] =
+          make_half2(rand() * 1.0 / RAND_MAX, rand() * 1.0 / RAND_MAX);
     }
   }
 }
-
