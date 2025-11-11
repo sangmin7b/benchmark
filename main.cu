@@ -6,7 +6,7 @@
 #include "cufftdx_benchmark.hpp"
 
 #ifndef ARCHNUM
-#define ARCHNUM 890
+#define ARCHNUM 800
 #endif
 
 int main(int argc, char **argv) {

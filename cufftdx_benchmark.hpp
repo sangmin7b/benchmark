@@ -300,10 +300,10 @@ float benchmark_cufftdx_1d_batch_impl(int batch, int comp_repeats = 10000,
         constexpr size_t shmem = std::max(FFT::shared_memory_size, size_bytes);
         if constexpr (std::is_same_v<T, __half2>) {
           if constexpr (SMEM) {
-            cufftdx_batch_kernel_half<FFT>
+            cufftdx_batch_kernel_smem_half<FFT>
                 <<<grid_size, FFT::block_dim, shmem>>>(in, out, b, repeats);
           } else {
-            cufftdx_batch_kernel_smem_half<FFT>
+            cufftdx_batch_kernel_half<FFT>
                 <<<grid_size, FFT::block_dim, shmem>>>(in, out, b, repeats);
           }
         } else {
@@ -757,17 +757,14 @@ float benchmark_cufftdx_1d_batch(int batch, bool smem = false, bool e2e = false,
     } else {
       // reg
       min_time = std::min(
-          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 16, 8, SMNUM, false>(
-                        batch, comp_repeats, eval_repeats));
-      min_time = std::min(
           min_time, benchmark_cufftdx_1d_batch_impl<N, T, 16, 16, SMNUM, false>(
-                        batch, comp_repeats, eval_repeats));
-      min_time = std::min(
-          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 32, 16, SMNUM, false>(
                         batch, comp_repeats, eval_repeats));
       min_time = std::min(
           min_time, benchmark_cufftdx_1d_batch_impl<N, T, 8, 16, SMNUM, false>(
                         batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 4, 16, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));                        
     }
   }
   if constexpr (N == 1024 && std::is_same_v<T, __half2>) {
