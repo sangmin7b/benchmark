@@ -17,6 +17,8 @@ int main(int argc, char **argv) {
   int N = 0;
   bool search = false;
   bool e2e = false;
+  bool smem = false;
+  bool default_only = false;
   int type = 0; // 0: single, 1: double, 2: half
   for (int i = 1; i < argc; ++i) {
     if (std::string(argv[i]) == "-N" && i + 1 < argc) {
@@ -27,6 +29,12 @@ int main(int argc, char **argv) {
     }
     if (std::string(argv[i]) == "--e2e") {
       e2e = true;
+    }
+    if (std::string(argv[i]) == "--smem") {
+      smem = true;
+    }
+    if (std::string(argv[i]) == "--default") {
+      default_only = true;
     }
     if (std::string(argv[i]) == "--type" && i + 1 < argc) {
       type = atoi(argv[i + 1]);
@@ -141,31 +149,31 @@ int main(int argc, char **argv) {
       switch (N) {
       case 64:
         cufftdx_1d_batched_results[64] =
-            benchmark_cufftdx_1d_batch<64, float2, Arch>(batch, e2e);
+            benchmark_cufftdx_1d_batch<64, float2, Arch>(batch, smem, e2e, default_only);
         break;
       case 128:
         cufftdx_1d_batched_results[128] =
-            benchmark_cufftdx_1d_batch<128, float2, Arch>(batch, e2e);
+            benchmark_cufftdx_1d_batch<128, float2, Arch>(batch, smem, e2e, default_only);
         break;
       case 256:
         cufftdx_1d_batched_results[256] =
-            benchmark_cufftdx_1d_batch<256, float2, Arch>(batch, e2e);
+            benchmark_cufftdx_1d_batch<256, float2, Arch>(batch, smem, e2e, default_only);
         break;
       case 512:
         cufftdx_1d_batched_results[512] =
-            benchmark_cufftdx_1d_batch<512, float2, Arch>(batch, e2e);
+            benchmark_cufftdx_1d_batch<512, float2, Arch>(batch, smem, e2e, default_only);
         break;
       case 1024:
         cufftdx_1d_batched_results[1024] =
-            benchmark_cufftdx_1d_batch<1024, float2, Arch>(batch, e2e);
+            benchmark_cufftdx_1d_batch<1024, float2, Arch>(batch, smem, e2e, default_only);
         break;
       case 2048:
         cufftdx_1d_batched_results[2048] =
-            benchmark_cufftdx_1d_batch<2048, float2, Arch>(batch, e2e);
+            benchmark_cufftdx_1d_batch<2048, float2, Arch>(batch, smem, e2e, default_only);
         break;
       case 4096:
         cufftdx_1d_batched_results[4096] =
-            benchmark_cufftdx_1d_batch<4096, float2, Arch>(batch, e2e);
+            benchmark_cufftdx_1d_batch<4096, float2, Arch>(batch, smem, e2e, default_only);
         break;
       }
     }
@@ -173,31 +181,31 @@ int main(int argc, char **argv) {
       switch (N) {
       case 64:
         cufftdx_1d_batched_h_results[64] =
-            benchmark_cufftdx_1d_batch<64, __half2, Arch>(batch, e2e);
+            benchmark_cufftdx_1d_batch<64, __half2, Arch>(batch, smem, e2e, default_only);
         break;
       case 128:
         cufftdx_1d_batched_h_results[128] =
-            benchmark_cufftdx_1d_batch<128, __half2, Arch>(batch, e2e);
+            benchmark_cufftdx_1d_batch<128, __half2, Arch>(batch, smem, e2e, default_only);
         break;
       case 256:
         cufftdx_1d_batched_h_results[256] =
-            benchmark_cufftdx_1d_batch<256, __half2, Arch>(batch, e2e);
+            benchmark_cufftdx_1d_batch<256, __half2, Arch>(batch, smem, e2e, default_only);
         break;
       case 512:
         cufftdx_1d_batched_h_results[512] =
-            benchmark_cufftdx_1d_batch<512, __half2, Arch>(batch, e2e);
+            benchmark_cufftdx_1d_batch<512, __half2, Arch>(batch, smem, e2e, default_only);
         break;
       case 1024:
         cufftdx_1d_batched_h_results[1024] =
-            benchmark_cufftdx_1d_batch<1024, __half2, Arch>(batch, e2e);
+            benchmark_cufftdx_1d_batch<1024, __half2, Arch>(batch, smem, e2e, default_only);
         break;
       case 2048:
         cufftdx_1d_batched_h_results[2048] =
-            benchmark_cufftdx_1d_batch<2048, __half2, Arch>(batch, e2e);
+            benchmark_cufftdx_1d_batch<2048, __half2, Arch>(batch, smem, e2e, default_only);
         break;
       case 4096:
         cufftdx_1d_batched_h_results[4096] =
-            benchmark_cufftdx_1d_batch<4096, __half2, Arch>(batch, e2e);
+            benchmark_cufftdx_1d_batch<4096, __half2, Arch>(batch, smem, e2e, default_only);
         break;
       }
     }

@@ -92,6 +92,98 @@ __launch_bounds__(FFT::max_threads_per_block) __global__
   }
 }
 
+template <class FFT, typename T>
+__launch_bounds__(FFT::max_threads_per_block) __global__
+    void cufftdx_batch_kernel_smem(T *input, T *output, int batch, int repeat) {
+  using complex_type = typename FFT::value_type;
+
+  constexpr int FFTsPerBlk = FFT::ffts_per_block;
+  constexpr int FFTSize = cufftdx::size_of<FFT>::value;
+
+  extern __shared__ __align__(alignof(float4)) unsigned char shared_mem[];
+  complex_type *shared_mem_p = reinterpret_cast<complex_type *>(shared_mem);
+  // Custom load
+  unsigned int offset =
+      blockIdx.x * FFTsPerBlk * FFTSize / FFT::implicit_type_batching;
+  complex_type *input_block = reinterpret_cast<complex_type *>(input) + offset;
+  complex_type *output_block =
+      reinterpret_cast<complex_type *>(output) + offset;
+  unsigned int stride = blockDim.x * blockDim.y;
+  unsigned int index = threadIdx.y * blockDim.x + threadIdx.x;
+
+  for (int i = 0; i < FFT::elements_per_thread; i++) {
+    if (index < blockDim.y * FFT::input_length) {
+      shared_mem_p[index] = input_block[index];
+    }
+    index += stride;
+  }
+  __syncthreads();
+
+// Execute
+#pragma unroll 1
+  for (int i = 0; i < repeat; i++) {
+    FFT().execute(shared_mem_p);
+  }
+  __syncthreads();
+  index = threadIdx.y * blockDim.x + threadIdx.x;
+  for (int i = 0; i < FFT::elements_per_thread; i++) {
+    if (index < blockDim.y * FFT::input_length) {
+      output_block[index] = shared_mem_p[index];
+    }
+    index += stride;
+  }
+}
+
+template <class FFT>
+__launch_bounds__(FFT::max_threads_per_block) __global__
+    void cufftdx_batch_kernel_smem_half(__half2 *input, __half2 *output,
+                                        int batch, int repeat) {
+  using complex_type = typename FFT::value_type;
+
+  constexpr int FFTsPerBlk = FFT::ffts_per_block;
+  constexpr int FFTSize = cufftdx::size_of<FFT>::value;
+
+  int global_fft_id = (blockIdx.x * FFTsPerBlk + threadIdx.y);
+  if (global_fft_id >= batch)
+    return;
+  extern __shared__ __align__(alignof(float4)) unsigned char smem[];
+  complex_type *smem_p = reinterpret_cast<complex_type *>(smem);
+
+  // Custom load
+  unsigned int offset = blockIdx.x * FFTsPerBlk * FFTSize;
+  __half2 *input_block = input + offset;
+  __half2 *output_block = output + offset;
+  unsigned int index = threadIdx.y * blockDim.x + threadIdx.x;
+  unsigned int stride = blockDim.x * blockDim.y;
+  unsigned int batch_stride =
+      (FFT::ffts_per_block / 2) * cufftdx::size_of<FFT>::value;
+  for (int i = 0; i < FFT::elements_per_thread; i++) {
+    if (index < blockDim.y * FFT::input_length) {
+      smem_p[index] = example::to_rrii((input_block)[index],
+                                       (input_block)[index + batch_stride]);
+    }
+    index += stride;
+  }
+  __syncthreads();
+
+  // Execute
+#pragma unroll 1
+  for (int i = 0; i < repeat; i++) {
+    FFT().execute(smem_p);
+  }
+  __syncthreads();
+
+  // Custom store
+  index = threadIdx.y * blockDim.x + threadIdx.x;
+  for (int i = 0; i < FFT::elements_per_thread; i++) {
+    if (index < blockDim.y * FFT::input_length) {
+      output_block[index] = example::to_ri1(smem_p[index]);
+      output_block[index + batch_stride] = example::to_ri2(smem_p[index]);
+    }
+    index += stride;
+  }
+}
+
 template <class FFT>
 __global__ void thread_fft_kernel(typename FFT::value_type *input,
                                   typename FFT::value_type *output, int batch,
@@ -149,19 +241,28 @@ __global__ void thread_fft_kernel_half(__half2 *input, __half2 *output,
   }
 }
 
-template <unsigned N, typename T, unsigned FPB, unsigned EPT, unsigned SMNUM>
+template <unsigned N, typename T, unsigned FPB, unsigned EPT, unsigned SMNUM,
+          bool SMEM>
 float benchmark_cufftdx_1d_batch_impl(int batch, int comp_repeats = 10000,
                                       int eval_repeats = 5) {
-  printf(
-      "[cuFFTDx] 1D Batch FFT Type= %s, N = %u, batch = %d, FFTsPerBlock = %u, "
-      "ElementsPerThread = %u\n",
-      typeid(T).name(), N, batch, FPB, EPT);
+  if (FPB == 0) {
+    printf("[cuFFTDx] 1D Batch FFT Default\n");
+  } else {
+    printf("[cuFFTDx] 1D Batch FFT Type= %s, N = %u, batch = %d, FFTsPerBlock "
+           "= %u, "
+           "ElementsPerThread = %u SMEM = %d\n",
+           typeid(T).name(), N, batch, FPB, EPT, SMEM);
+  }
 
   using precision_t = typename DataTypeToPrecision<T>::type;
-  using FFTBase =
+  using FFTBase = std::conditional_t<
+      (FPB == 0),
+      decltype(Size<N>() + precision_t{} + Type<fft_type::c2c>() +
+               Direction<fft_direction::forward>() + Block()),
       decltype(Size<N>() + precision_t{} + Type<fft_type::c2c>() +
                Direction<fft_direction::forward>() + FFTsPerBlock<FPB>() +
-               ElementsPerThread<EPT>() + Block());
+               ElementsPerThread<EPT>() + Block())>;
+
   if constexpr (!cufftdx::is_supported<FFTBase, SMNUM>::value) {
     printf("Not supported\n");
     return std::numeric_limits<float>::infinity();
@@ -181,6 +282,8 @@ float benchmark_cufftdx_1d_batch_impl(int batch, int comp_repeats = 10000,
 
     try {
       using FFT = decltype(FFTBase() + SM<SMNUM>());
+      printf("fft FPB: %d, EPT: %d\n", FFT::ffts_per_block,
+             FFT::elements_per_thread);
       printf("fft inputlength: %d, fft block size %d, %d\n", FFT::input_length,
              FFT::block_dim.x, FFT::block_dim.y);
       using complex_type = typename FFT::value_type;
@@ -196,11 +299,21 @@ float benchmark_cufftdx_1d_batch_impl(int batch, int comp_repeats = 10000,
             cufftdx::size_of<FFT>::value * sizeof(complex_type);
         constexpr size_t shmem = std::max(FFT::shared_memory_size, size_bytes);
         if constexpr (std::is_same_v<T, __half2>) {
-          cufftdx_batch_kernel_half<FFT>
-              <<<grid_size, FFT::block_dim, shmem>>>(in, out, b, repeats);
+          if constexpr (SMEM) {
+            cufftdx_batch_kernel_half<FFT>
+                <<<grid_size, FFT::block_dim, shmem>>>(in, out, b, repeats);
+          } else {
+            cufftdx_batch_kernel_smem_half<FFT>
+                <<<grid_size, FFT::block_dim, shmem>>>(in, out, b, repeats);
+          }
         } else {
-          cufftdx_batch_kernel<FFT, T>
-              <<<grid_size, FFT::block_dim, shmem>>>(in, out, b, repeats);
+          if constexpr (SMEM) {
+            cufftdx_batch_kernel_smem<FFT, T>
+                <<<grid_size, FFT::block_dim, shmem>>>(in, out, b, repeats);
+          } else {
+            cufftdx_batch_kernel<FFT, T>
+                <<<grid_size, FFT::block_dim, shmem>>>(in, out, b, repeats);
+          }
         }
         cudaDeviceSynchronize();
         checkCuda(cudaPeekAtLastError(), "after kernel execution");
@@ -212,13 +325,25 @@ float benchmark_cufftdx_1d_batch_impl(int batch, int comp_repeats = 10000,
       // constexpr size_t shmem = FFT::shared_memory_size;
       printf("[Setting] Shared memory size: %zu bytes\n", shmem);
       if constexpr (std::is_same_v<T, __half2>) {
-        cudaFuncSetAttribute(cufftdx_batch_kernel_half<FFT>,
-                             cudaFuncAttributeMaxDynamicSharedMemorySize,
-                             shmem);
+        if constexpr (SMEM) {
+          cudaFuncSetAttribute(cufftdx_batch_kernel_smem_half<FFT>,
+                               cudaFuncAttributeMaxDynamicSharedMemorySize,
+                               shmem);
+        } else {
+          cudaFuncSetAttribute(cufftdx_batch_kernel_half<FFT>,
+                               cudaFuncAttributeMaxDynamicSharedMemorySize,
+                               shmem);
+        }
       } else {
-        cudaFuncSetAttribute(cufftdx_batch_kernel<FFT, T>,
-                             cudaFuncAttributeMaxDynamicSharedMemorySize,
-                             shmem);
+        if constexpr (SMEM) {
+          cudaFuncSetAttribute(cufftdx_batch_kernel_smem<FFT, T>,
+                               cudaFuncAttributeMaxDynamicSharedMemorySize,
+                               shmem);
+        } else {
+          cudaFuncSetAttribute(cufftdx_batch_kernel<FFT, T>,
+                               cudaFuncAttributeMaxDynamicSharedMemorySize,
+                               shmem);
+        }
       }
       printf("Start validation\n");
       // validate
@@ -446,123 +571,164 @@ float benchmark_cufftdx_1d_batch_thread_impl(int batch,
 }
 
 template <unsigned N, typename T, unsigned SMNUM>
-float benchmark_cufftdx_1d_batch(int batch, bool e2e = false) {
+float benchmark_cufftdx_1d_batch(int batch, bool smem = false, bool e2e = false,
+                                 bool default_only = false) {
   float min_time = std::numeric_limits<float>::infinity();
   // Test all configurations from (FFT Per Block in [1, 32], Elements Per Thread
   // in [2, 32])
   // https://docs.nvidia.com/cuda/cufftdx/api/operators.html#ept-operator-label
 
   int comp_repeats = 10000;
-  int eval_repeats = 5;
+  int eval_repeats = 5 * 4096 / N;
 
   if (e2e) {
     comp_repeats = 1;
     eval_repeats = 10000;
   }
 
+  // default
+  printf("cuFFTDx with default FPB, EPT\n");
+  if (smem) {
+    min_time = std::min(
+        min_time, benchmark_cufftdx_1d_batch_impl<N, T, 0, 0, SMNUM, true>(
+                      batch, comp_repeats, eval_repeats));
+  } else {
+    min_time = std::min(
+        min_time, benchmark_cufftdx_1d_batch_impl<N, T, 0, 0, SMNUM, false>(
+                      batch, comp_repeats, eval_repeats));
+  }
+  if (default_only)
+    return min_time;
+
   // A100 single
 
   if constexpr (N == 64 && std::is_same_v<T, float2>) {
     // reg & smem
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 16, 8, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
+    if (smem) {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 16, 8, SMNUM, true>(
+                        batch, comp_repeats, eval_repeats));
+    } else {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 16, 8, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
 
-    min_time = std::min(min_time,
-                        benchmark_cufftdx_1d_batch_thread_impl<N, T, 16, SMNUM>(
-                            batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_thread_impl<N, T, 16, SMNUM>(
+                        batch, comp_repeats, eval_repeats));
 
-    min_time = std::min(min_time,
-                        benchmark_cufftdx_1d_batch_thread_impl<N, T, 32, SMNUM>(
-                            batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_thread_impl<N, T, 32, SMNUM>(
+                        batch, comp_repeats, eval_repeats));
 
-    min_time = std::min(min_time,
-                        benchmark_cufftdx_1d_batch_thread_impl<N, T, 64, SMNUM>(
-                            batch, comp_repeats, eval_repeats));
-    min_time = std::min(
-        min_time, benchmark_cufftdx_1d_batch_thread_impl<N, T, 128, SMNUM>(
-                      batch, comp_repeats, eval_repeats));
-
-    min_time = std::min(
-        min_time, benchmark_cufftdx_1d_batch_thread_impl<N, T, 256, SMNUM>(
-                      batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_thread_impl<N, T, 64, SMNUM>(
+                        batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_thread_impl<N, T, 128, SMNUM>(
+                        batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_thread_impl<N, T, 256, SMNUM>(
+                        batch, comp_repeats, eval_repeats));
+    }
   }
 
   if constexpr (N == 128 && std::is_same_v<T, float2>) {
     // reg
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 8, 16, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
-    // smem
-    // min_time =
-    //     std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 8, 8,
-    //     SMNUM>(
-    //                            batch, comp_repeats, eval_repeats));
+    if (smem) {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 8, 16, SMNUM, true>(
+                        batch, comp_repeats, eval_repeats));
+    } else {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 8, 8, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+    }
   }
 
   if constexpr (N == 256 && std::is_same_v<T, float2>) {
-    // reg
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 16, 4, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 16, 2, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
-    // smem
-    // min_time =
-    //     std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 4, 8,
-    //     SMNUM>(
-    //                            batch, comp_repeats, eval_repeats));
+    if (smem) {
+      // smem
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 4, 8, SMNUM, true>(
+                        batch, comp_repeats, eval_repeats));
+    } else {
+      // reg
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 4, 16, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 2, 16, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+    }
   }
   if constexpr (N == 512 && std::is_same_v<T, float2>) {
     // reg & smem
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 2, 8, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
+    if (smem) {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 2, 8, SMNUM, true>(
+                        batch, comp_repeats, eval_repeats));
+    } else {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 2, 8, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+    }
   }
   if constexpr (N == 1024 && std::is_same_v<T, float2>) {
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 16, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 32, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
-    // smem
-    // min_time =
-    //     std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 4,
-    //     SMNUM>(
-    //                            batch, comp_repeats, eval_repeats));
+    if (smem) {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 4, SMNUM, true>(
+                        batch, comp_repeats, eval_repeats));
+    } else {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 16, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 32, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+    }
   }
   if constexpr (N == 2048 && std::is_same_v<T, float2>) {
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 16, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
-    // smem
-    // min_time =
-    //     std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 4,
-    //     SMNUM>(
-    //                            batch, comp_repeats, eval_repeats));
+    if (smem) {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 16, SMNUM, true>(
+                        batch, comp_repeats, eval_repeats));
+    } else {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 4, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+    }
   }
   if constexpr (N == 4096 && std::is_same_v<T, float2>) {
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 16, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
     // smem
-    // min_time =
-    //     std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 32,
-    //     SMNUM>(
-    //                            batch, comp_repeats, eval_repeats));
+    if (smem) {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 32, SMNUM, true>(
+                        batch, comp_repeats, eval_repeats));
+    } else {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 16, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+    }
   }
 
   // A100 half
   if constexpr (N == 64 && std::is_same_v<T, __half2>) {
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 32, 8, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 16, 8, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
-
+    if (smem) {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 32, 8, SMNUM, true>(
+                        batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 16, 8, SMNUM, true>(
+                        batch, comp_repeats, eval_repeats));
+    } else {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 32, 8, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 16, 8, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+    }
     min_time = std::min(min_time,
                         benchmark_cufftdx_1d_batch_thread_impl<N, T, 16, SMNUM>(
                             batch, comp_repeats, eval_repeats));
@@ -580,44 +746,60 @@ float benchmark_cufftdx_1d_batch(int batch, bool e2e = false) {
                       batch, comp_repeats, eval_repeats));
   }
   if constexpr (N == 256 && std::is_same_v<T, __half2>) {
-    // reg
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 16, 8, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 16, 16, SMNUM>(
-                               batch, comp_repeats, eval_repeats));         
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 32, 16, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
-    // smem & reg
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 8, 16, SMNUM>(
-                               batch, comp_repeats, eval_repeats));                       
     // smem
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 8, 8, SMNUM>(
-                               batch, comp_repeats, eval_repeats));                                                           
+    if (smem) {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 8, 8, SMNUM, true>(
+                        batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 8, 16, SMNUM, true>(
+                        batch, comp_repeats, eval_repeats));
+    } else {
+      // reg
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 16, 8, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 16, 16, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 32, 16, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 8, 16, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+    }
   }
   if constexpr (N == 1024 && std::is_same_v<T, __half2>) {
     // reg  & smem
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 2, 16, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 4, 16, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
+    if (smem) {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 2, 16, SMNUM, true>(
+                        batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 4, 16, SMNUM, true>(
+                        batch, comp_repeats, eval_repeats));
+    } else {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 2, 16, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 4, 16, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+    }
   }
   if constexpr (N == 4096 && std::is_same_v<T, __half2>) {
-    // reg
-    // min_time =
-    //     std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 2, 16,
-    //     SMNUM>(
-    //                            batch, comp_repeats, eval_repeats));
     // smem
-    min_time =
-        std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 2, 32, SMNUM>(
-                               batch, comp_repeats, eval_repeats));
+    if (smem) {
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 2, 32, SMNUM, true>(
+                        batch, comp_repeats, eval_repeats));
+    } else {
+      // reg
+      min_time = std::min(
+          min_time, benchmark_cufftdx_1d_batch_impl<N, T, 2, 16, SMNUM, false>(
+                        batch, comp_repeats, eval_repeats));
+    }
   }
 
   return min_time;
@@ -630,9 +812,9 @@ float search_parameters(int batch) {
   // in [2, 32])
   // https://docs.nvidia.com/cuda/cufftdx/api/operators.html#ept-operator-label
 
+#ifdef SEARCH
   int comp_repeats = 800;
   int eval_repeats = 3;
-
   if constexpr (!std::is_same_v<T, __half2>) {
     min_time =
         std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 1, 2, SMNUM>(
@@ -738,6 +920,6 @@ float search_parameters(int batch) {
     min_time =
         std::min(min_time, benchmark_cufftdx_1d_batch_impl<N, T, 32, 32, SMNUM>(
                                batch, comp_repeats, eval_repeats));
-
+#endif
   return min_time;
 }

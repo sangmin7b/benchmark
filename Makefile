@@ -13,13 +13,14 @@ INCLUDES = -I. -I$(MATHDX_ROOT)/include -I$(MATHDX_ROOT)/external/cutlass/includ
 LIBS = -lcudart -lcudnn -lcufft
 
 
-all: $(COMPUTE_CAPABILITY:%=$(TARGET)-sm%)
+all: $(TARGET)
 
-$(TARGET)-sm%: $(SRCS)
-	$(NVCC)  -gencode arch=compute_$*,code=sm_$* -std=c++17 -O3 -DCUFFT_TARGET_ARCHS=$*0fft_benchmark -DARCHNUM=$*0 -o $@ $^ $(INCLUDES) $(LIBS) 
+$(TARGET): $(SRCS)
+	$(NVCC) -std=c++17 -O3 \
+	        -gencode arch=compute_$(COMPUTE_CAPABILITY),code=sm_$(COMPUTE_CAPABILITY) \
+	        -DCUFFT_TARGET_ARCHS=$(COMPUTE_CAPABILITY)0 \
+	        -DARCHNUM=$(COMPUTE_CAPABILITY)0 \
+	        -o $@ $^ $(INCLUDES) $(LIBS)
 
 clean:
-	rm -f $(COMPUTE_CAPABILITY:%=$(TARGET)-sm%)
-
-
-	# Makefile for building cufftdx.cu with cuFFT/cuFFTDx
+	rm -f $(TARGET)
