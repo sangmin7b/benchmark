@@ -84,63 +84,77 @@ int main(int argc, char **argv) {
     if (type == 0) {
       switch (N) {
       case 64:
-        cufftdx_1d_batched_results[64] =
-            search_parameters<64, float2, Arch>(batch);
+        cufftdx_1d_batched_results[64] = smem ?
+            search_parameters<64, float2, Arch, true>(batch) :
+            search_parameters<64, float2, Arch, false>(batch);
         break;
       case 128:
-        cufftdx_1d_batched_results[128] =
-            search_parameters<128, float2, Arch>(batch);
+        cufftdx_1d_batched_results[128] = smem ?
+            search_parameters<128, float2, Arch, true>(batch) :
+            search_parameters<128, float2, Arch, false>(batch);
         break;
       case 256:
-        cufftdx_1d_batched_results[256] =
-            search_parameters<256, float2, Arch>(batch);
+        cufftdx_1d_batched_results[256] = smem ?
+            search_parameters<256, float2, Arch, true>(batch) :
+            search_parameters<256, float2, Arch, false>(batch);
         break;
       case 512:
-        cufftdx_1d_batched_results[512] =
-            search_parameters<512, float2, Arch>(batch);
+        cufftdx_1d_batched_results[512] = smem ?
+            search_parameters<512, float2, Arch, true>(batch) :
+            search_parameters<512, float2, Arch, false>(batch);
         break;
       case 1024:
-        cufftdx_1d_batched_results[1024] =
-            search_parameters<1024, float2, Arch>(batch);
+        cufftdx_1d_batched_results[1024] = smem ?
+            search_parameters<1024, float2, Arch, true>(batch) :
+            search_parameters<1024, float2, Arch, false>(batch);
         break;
       case 2048:
-        cufftdx_1d_batched_results[2048] =
-            search_parameters<2048, float2, Arch>(batch);
+        cufftdx_1d_batched_results[2048] = smem ?
+            search_parameters<2048, float2, Arch, true>(batch) :
+            search_parameters<2048, float2, Arch, false>(batch);
         break;
       case 4096:
-        cufftdx_1d_batched_results[4096] =
-            search_parameters<4096, float2, Arch>(batch);
+        cufftdx_1d_batched_results[4096] = smem ?
+            search_parameters<4096, float2, Arch, true>(batch) :
+            search_parameters<4096, float2, Arch, false>(batch);
         break;
       }
     } else if (type == 1) {
       switch (N) {
       case 64:
-        cufftdx_1d_batched_h_results[64] =
-            search_parameters<64, __half2, Arch>(batch);
+        cufftdx_1d_batched_h_results[64] = smem ?
+            search_parameters<64, __half2, Arch, true>(batch) :
+            search_parameters<64, __half2, Arch, false>(batch);
         break;
       case 128:
-        cufftdx_1d_batched_h_results[128] =
-            search_parameters<128, __half2, Arch>(batch);
+        cufftdx_1d_batched_h_results[128] = smem ?
+            search_parameters<128, __half2, Arch, true>(batch) :
+            search_parameters<128, __half2, Arch, false>(batch);
         break;
       case 256:
-        cufftdx_1d_batched_h_results[256] =
-            search_parameters<256, __half2, Arch>(batch);
+        cufftdx_1d_batched_h_results[256] = smem ?
+            search_parameters<256, __half2, Arch, true>(batch) :
+            search_parameters<256, __half2, Arch, false>(batch);
         break;
       case 512:
-        cufftdx_1d_batched_h_results[512] =
-            search_parameters<512, __half2, Arch>(batch);
+        cufftdx_1d_batched_h_results[512] = smem ?
+            search_parameters<512, __half2, Arch, true>(batch) :
+            search_parameters<512, __half2, Arch, false>(batch);
         break;
       case 1024:
-        cufftdx_1d_batched_h_results[1024] =
-            search_parameters<1024, __half2, Arch>(batch);
+        cufftdx_1d_batched_h_results[1024] = smem ?
+            search_parameters<1024, __half2, Arch, true>(batch) :
+            search_parameters<1024, __half2, Arch, false>(batch);
         break;
       case 2048:
-        cufftdx_1d_batched_h_results[2048] =
-            search_parameters<2048, __half2, Arch>(batch);
+        cufftdx_1d_batched_h_results[2048] = smem ?
+            search_parameters<2048, __half2, Arch, true>(batch) :
+            search_parameters<2048, __half2, Arch, false>(batch);
         break;
       case 4096:
-        cufftdx_1d_batched_h_results[4096] =
-            search_parameters<4096, __half2, Arch>(batch);
+        cufftdx_1d_batched_h_results[4096] = smem ?
+            search_parameters<4096, __half2, Arch, true>(batch) :
+            search_parameters<4096, __half2, Arch, false>(batch);
         break;
       }
     }
