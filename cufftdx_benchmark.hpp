@@ -579,7 +579,7 @@ float benchmark_cufftdx_1d_batch(int batch, bool smem = false, bool e2e = false,
   // https://docs.nvidia.com/cuda/cufftdx/api/operators.html#ept-operator-label
 
   int comp_repeats = 10000;
-  int eval_repeats = 5 * 4096 / N;
+  int eval_repeats = 5;
 
   if (e2e) {
     comp_repeats = 1;

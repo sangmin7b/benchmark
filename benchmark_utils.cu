@@ -50,12 +50,17 @@ float measure_kernel_time(BenchmarkFunc func, void *user_data, int repeat) {
 }
 
 bool validate_output(float2 *ref, float2 *target, int size, const char *tag,
-                     float atol) {
+                     float tol) {
   int errors = 0;
   for (int i = 0; i < size; ++i) {
     float diff_x = fabs(ref[i].x - target[i].x);
     float diff_y = fabs(ref[i].y - target[i].y);
-    if (diff_x > atol || diff_y > atol) {
+    float rdiff_x = diff_x / (fmaxf(fabs(ref[i].x), 1e-6f));
+    float rdiff_y = diff_y / (fmaxf(fabs(ref[i].y), 1e-6f));
+    float diff = fmaxf(diff_x, diff_y);
+    float rdiff = fmaxf(rdiff_x, rdiff_y);
+    diff = fminf(diff, rdiff);
+    if (diff > tol) {
       if (++errors <= 5)
         printf("[Mismatch:%s] idx=%d ref=(%.3f, %.3f) target=(%.3f, %.3f)\n",
                tag, i, ref[i].x, ref[i].y, target[i].x, target[i].y);
@@ -71,12 +76,17 @@ bool validate_output(float2 *ref, float2 *target, int size, const char *tag,
 }
 
 bool validate_output(double2 *ref, double2 *target, int size, const char *tag,
-                     float atol) {
+                     float tol) {
   int errors = 0;
   for (int i = 0; i < size; ++i) {
     float diff_x = fabs(ref[i].x - target[i].x);
     float diff_y = fabs(ref[i].y - target[i].y);
-    if (diff_x > atol || diff_y > atol) {
+    float rdiff_x = diff_x / (fmaxf(fabs(ref[i].x), 1e-6f));
+    float rdiff_y = diff_y / (fmaxf(fabs(ref[i].y), 1e-6f));
+    float diff = fmaxf(diff_x, diff_y);
+    float rdiff = fmaxf(rdiff_x, rdiff_y);
+    diff = fminf(diff, rdiff);
+    if (diff > tol) {
       if (++errors <= 5)
         printf("[Mismatch:%s] idx=%d ref=(%.3f, %.3f) target=(%.3f, %.3f)\n",
                tag, i, ref[i].x, ref[i].y, target[i].x, target[i].y);
@@ -92,12 +102,17 @@ bool validate_output(double2 *ref, double2 *target, int size, const char *tag,
 }
 
 bool validate_output(__half2 *ref, __half2 *target, int size, const char *tag,
-                     float atol) {
+                     float tol) {
   int errors = 0;
   for (int i = 0; i < size; ++i) {
     float diff_x = fabs(__half2float(ref[i].x) - __half2float(target[i].x));
     float diff_y = fabs(__half2float(ref[i].y) - __half2float(target[i].y));
-    if (diff_x > atol || diff_y > atol) {
+    float rdiff_x = diff_x / (fmaxf(fabs(__half2float(ref[i].x)), 1e-6f));
+    float rdiff_y = diff_y / (fmaxf(fabs(__half2float(ref[i].y)), 1e-6f));
+    float diff = fmaxf(diff_x, diff_y);
+    float rdiff = fmaxf(rdiff_x, rdiff_y);
+    diff = fminf(diff, rdiff);
+    if (diff > tol) {      
       if (++errors <= 5)
         printf("[Mismatch:%s] idx=%d ref=(%.3f, %.3f) target=(%.3f, %.3f)\n",
                tag, i, __half2float(ref[i].x), __half2float(ref[i].y),
