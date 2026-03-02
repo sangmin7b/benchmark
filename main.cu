@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <map>
+#include <string>
 #include <vector>
 
 #include "cufft_benchmark.hpp"
@@ -72,13 +73,15 @@ int main(int argc, char **argv) {
   constexpr unsigned int Arch = ARCHNUM;
   printf("arch: %d\n", Arch);
 
+  enum class RunType { single, half, both };
+
   // parse args -N for size
   int N = 0;
   bool search = false;
   bool e2e = false;
   bool smem = false;
   bool default_only = false;
-  int type = 0; // 0: single, 1: half
+  RunType run_type = RunType::both;
   for (int i = 1; i < argc; ++i) {
     if (std::string(argv[i]) == "-N" && i + 1 < argc) {
       N = atoi(argv[i + 1]);
@@ -96,7 +99,19 @@ int main(int argc, char **argv) {
       default_only = true;
     }
     if (std::string(argv[i]) == "--type" && i + 1 < argc) {
-      type = atoi(argv[i + 1]);
+      const std::string type_arg = argv[i + 1];
+      if (type_arg == "single" || type_arg == "float" || type_arg == "fp32" ||
+          type_arg == "0") {
+        run_type = RunType::single;
+      } else if (type_arg == "half" || type_arg == "fp16" || type_arg == "1") {
+        run_type = RunType::half;
+      } else if (type_arg == "all" || type_arg == "both" || type_arg == "2") {
+        run_type = RunType::both;
+      } else {
+        printf("Invalid --type: %s (use: single, half, all)\n",
+               type_arg.c_str());
+        return 1;
+      }
     }
   }
 
@@ -129,23 +144,26 @@ int main(int argc, char **argv) {
   // double: N [2, 16384] (90)
   // https://docs.nvidia.com/cuda/cufftdx/requirements_func.html#functionality-label
   printf("\n======== cuFFTDx 1D (batch) ========\n");
+  const bool run_single = run_type == RunType::single || run_type == RunType::both;
+  const bool run_half = run_type == RunType::half || run_type == RunType::both;
   for (int n : run_sizes) {
     printf("\n======== N %d ========\n", n);
     if (search) {
-      if (type == 0) {
+      if (run_single) {
         cufftdx_1d_batched_results[n] =
             run_cufftdx_search_for_size<Arch, float2>(n, batch, smem);
-      } else if (type == 1) {
+      }
+      if (run_half) {
         cufftdx_1d_batched_h_results[n] =
             run_cufftdx_search_for_size<Arch, __half2>(n, batch, smem);
       }
     } else {
-      if (type == 0) {
+      if (run_single) {
         cufftdx_1d_batched_results[n] =
             run_cufftdx_benchmark_for_size<Arch, float2>(n, batch, smem, e2e,
                                                          default_only);
       }
-      if (type == 1) {
+      if (run_half) {
         cufftdx_1d_batched_h_results[n] =
             run_cufftdx_benchmark_for_size<Arch, __half2>(n, batch, smem, e2e,
                                                           default_only);
