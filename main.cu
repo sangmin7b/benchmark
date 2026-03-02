@@ -9,6 +9,65 @@
 #define ARCHNUM 800
 #endif
 
+template <unsigned Arch, typename T>
+float run_cufftdx_search_for_size(int n, int batch, bool smem) {
+  switch (n) {
+  case 64:
+    return smem ? search_parameters<64, T, Arch, true>(batch)
+                : search_parameters<64, T, Arch, false>(batch);
+  case 128:
+    return smem ? search_parameters<128, T, Arch, true>(batch)
+                : search_parameters<128, T, Arch, false>(batch);
+  case 256:
+    return smem ? search_parameters<256, T, Arch, true>(batch)
+                : search_parameters<256, T, Arch, false>(batch);
+  case 512:
+    return smem ? search_parameters<512, T, Arch, true>(batch)
+                : search_parameters<512, T, Arch, false>(batch);
+  case 1024:
+    return smem ? search_parameters<1024, T, Arch, true>(batch)
+                : search_parameters<1024, T, Arch, false>(batch);
+  case 2048:
+    return smem ? search_parameters<2048, T, Arch, true>(batch)
+                : search_parameters<2048, T, Arch, false>(batch);
+  case 4096:
+    return smem ? search_parameters<4096, T, Arch, true>(batch)
+                : search_parameters<4096, T, Arch, false>(batch);
+  default:
+    return 0.0f;
+  }
+}
+
+template <unsigned Arch, typename T>
+float run_cufftdx_benchmark_for_size(int n, int batch, bool smem, bool e2e,
+                                     bool default_only) {
+  switch (n) {
+  case 64:
+    return benchmark_cufftdx_1d_batch<64, T, Arch>(batch, smem, e2e,
+                                                   default_only);
+  case 128:
+    return benchmark_cufftdx_1d_batch<128, T, Arch>(batch, smem, e2e,
+                                                    default_only);
+  case 256:
+    return benchmark_cufftdx_1d_batch<256, T, Arch>(batch, smem, e2e,
+                                                    default_only);
+  case 512:
+    return benchmark_cufftdx_1d_batch<512, T, Arch>(batch, smem, e2e,
+                                                    default_only);
+  case 1024:
+    return benchmark_cufftdx_1d_batch<1024, T, Arch>(batch, smem, e2e,
+                                                     default_only);
+  case 2048:
+    return benchmark_cufftdx_1d_batch<2048, T, Arch>(batch, smem, e2e,
+                                                     default_only);
+  case 4096:
+    return benchmark_cufftdx_1d_batch<4096, T, Arch>(batch, smem, e2e,
+                                                     default_only);
+  default:
+    return 0.0f;
+  }
+}
+
 int main(int argc, char **argv) {
   constexpr unsigned int Arch = ARCHNUM;
   printf("arch: %d\n", Arch);
@@ -19,7 +78,7 @@ int main(int argc, char **argv) {
   bool e2e = false;
   bool smem = false;
   bool default_only = false;
-  int type = 0; // 0: single, 1: double, 2: half
+  int type = 0; // 0: single, 1: half
   for (int i = 1; i < argc; ++i) {
     if (std::string(argv[i]) == "-N" && i + 1 < argc) {
       N = atoi(argv[i + 1]);
@@ -40,35 +99,25 @@ int main(int argc, char **argv) {
       type = atoi(argv[i + 1]);
     }
   }
-  // check regsPerBlock
-  cudaDeviceProp p;
-  cudaGetDeviceProperties(&p, 0);
-  printf("regsPerBlock limit = %d\n", p.regsPerBlock);
 
   std::vector<int> sizes;
-  sizes.push_back(64);
-  sizes.push_back(128);
-  sizes.push_back(256);
-  sizes.push_back(512);
-  sizes.push_back(1024);
-  sizes.push_back(2048);
-  sizes.push_back(4096);
+  for (int i = 64; i <= 4096; i *= 2) {
+    sizes.push_back(i);
+  }
+
+  std::vector<int> run_sizes;
+  if (N > 0) {
+    run_sizes.push_back(N);
+  } else {
+    run_sizes = sizes;
+  }
 
   int batch = 65536;
-  // printf("\n======== cuFFT 1D (batch) ========\n");
-  std::map<int, float> cufft_1d_batched_results;
-  std::map<int, float> cufft_1d_batched_d_results;
-  std::map<int, float> cufft_1d_batched_h_results;
   std::map<int, float> cufftdx_1d_batched_results;
-  std::map<int, float> cufftdx_1d_batched_d_results;
   std::map<int, float> cufftdx_1d_batched_h_results;
 
   for (int n : sizes) {
-    cufft_1d_batched_results[n] = 0.0f;
-    cufft_1d_batched_d_results[n] = 0.0f;
-    cufft_1d_batched_h_results[n] = 0.0f;
     cufftdx_1d_batched_results[n] = 0.0f;
-    cufftdx_1d_batched_d_results[n] = 0.0f;
     cufftdx_1d_batched_h_results[n] = 0.0f;
   }
 
@@ -80,162 +129,36 @@ int main(int argc, char **argv) {
   // double: N [2, 16384] (90)
   // https://docs.nvidia.com/cuda/cufftdx/requirements_func.html#functionality-label
   printf("\n======== cuFFTDx 1D (batch) ========\n");
-  if (search) {
-    if (type == 0) {
-      switch (N) {
-      case 64:
-        cufftdx_1d_batched_results[64] = smem ?
-            search_parameters<64, float2, Arch, true>(batch) :
-            search_parameters<64, float2, Arch, false>(batch);
-        break;
-      case 128:
-        cufftdx_1d_batched_results[128] = smem ?
-            search_parameters<128, float2, Arch, true>(batch) :
-            search_parameters<128, float2, Arch, false>(batch);
-        break;
-      case 256:
-        cufftdx_1d_batched_results[256] = smem ?
-            search_parameters<256, float2, Arch, true>(batch) :
-            search_parameters<256, float2, Arch, false>(batch);
-        break;
-      case 512:
-        cufftdx_1d_batched_results[512] = smem ?
-            search_parameters<512, float2, Arch, true>(batch) :
-            search_parameters<512, float2, Arch, false>(batch);
-        break;
-      case 1024:
-        cufftdx_1d_batched_results[1024] = smem ?
-            search_parameters<1024, float2, Arch, true>(batch) :
-            search_parameters<1024, float2, Arch, false>(batch);
-        break;
-      case 2048:
-        cufftdx_1d_batched_results[2048] = smem ?
-            search_parameters<2048, float2, Arch, true>(batch) :
-            search_parameters<2048, float2, Arch, false>(batch);
-        break;
-      case 4096:
-        cufftdx_1d_batched_results[4096] = smem ?
-            search_parameters<4096, float2, Arch, true>(batch) :
-            search_parameters<4096, float2, Arch, false>(batch);
-        break;
+  for (int n : run_sizes) {
+    printf("\n======== N %d ========\n", n);
+    if (search) {
+      if (type == 0) {
+        cufftdx_1d_batched_results[n] =
+            run_cufftdx_search_for_size<Arch, float2>(n, batch, smem);
+      } else if (type == 1) {
+        cufftdx_1d_batched_h_results[n] =
+            run_cufftdx_search_for_size<Arch, __half2>(n, batch, smem);
       }
-    } else if (type == 1) {
-      switch (N) {
-      case 64:
-        cufftdx_1d_batched_h_results[64] = smem ?
-            search_parameters<64, __half2, Arch, true>(batch) :
-            search_parameters<64, __half2, Arch, false>(batch);
-        break;
-      case 128:
-        cufftdx_1d_batched_h_results[128] = smem ?
-            search_parameters<128, __half2, Arch, true>(batch) :
-            search_parameters<128, __half2, Arch, false>(batch);
-        break;
-      case 256:
-        cufftdx_1d_batched_h_results[256] = smem ?
-            search_parameters<256, __half2, Arch, true>(batch) :
-            search_parameters<256, __half2, Arch, false>(batch);
-        break;
-      case 512:
-        cufftdx_1d_batched_h_results[512] = smem ?
-            search_parameters<512, __half2, Arch, true>(batch) :
-            search_parameters<512, __half2, Arch, false>(batch);
-        break;
-      case 1024:
-        cufftdx_1d_batched_h_results[1024] = smem ?
-            search_parameters<1024, __half2, Arch, true>(batch) :
-            search_parameters<1024, __half2, Arch, false>(batch);
-        break;
-      case 2048:
-        cufftdx_1d_batched_h_results[2048] = smem ?
-            search_parameters<2048, __half2, Arch, true>(batch) :
-            search_parameters<2048, __half2, Arch, false>(batch);
-        break;
-      case 4096:
-        cufftdx_1d_batched_h_results[4096] = smem ?
-            search_parameters<4096, __half2, Arch, true>(batch) :
-            search_parameters<4096, __half2, Arch, false>(batch);
-        break;
+    } else {
+      if (type == 0) {
+        cufftdx_1d_batched_results[n] =
+            run_cufftdx_benchmark_for_size<Arch, float2>(n, batch, smem, e2e,
+                                                         default_only);
       }
-    }
-  } else {
-    if (type == 0) {
-      switch (N) {
-      case 64:
-        cufftdx_1d_batched_results[64] =
-            benchmark_cufftdx_1d_batch<64, float2, Arch>(batch, smem, e2e, default_only);
-        break;
-      case 128:
-        cufftdx_1d_batched_results[128] =
-            benchmark_cufftdx_1d_batch<128, float2, Arch>(batch, smem, e2e, default_only);
-        break;
-      case 256:
-        cufftdx_1d_batched_results[256] =
-            benchmark_cufftdx_1d_batch<256, float2, Arch>(batch, smem, e2e, default_only);
-        break;
-      case 512:
-        cufftdx_1d_batched_results[512] =
-            benchmark_cufftdx_1d_batch<512, float2, Arch>(batch, smem, e2e, default_only);
-        break;
-      case 1024:
-        cufftdx_1d_batched_results[1024] =
-            benchmark_cufftdx_1d_batch<1024, float2, Arch>(batch, smem, e2e, default_only);
-        break;
-      case 2048:
-        cufftdx_1d_batched_results[2048] =
-            benchmark_cufftdx_1d_batch<2048, float2, Arch>(batch, smem, e2e, default_only);
-        break;
-      case 4096:
-        cufftdx_1d_batched_results[4096] =
-            benchmark_cufftdx_1d_batch<4096, float2, Arch>(batch, smem, e2e, default_only);
-        break;
-      }
-    }
-    if (type == 1) {
-      switch (N) {
-      case 64:
-        cufftdx_1d_batched_h_results[64] =
-            benchmark_cufftdx_1d_batch<64, __half2, Arch>(batch, smem, e2e, default_only);
-        break;
-      case 128:
-        cufftdx_1d_batched_h_results[128] =
-            benchmark_cufftdx_1d_batch<128, __half2, Arch>(batch, smem, e2e, default_only);
-        break;
-      case 256:
-        cufftdx_1d_batched_h_results[256] =
-            benchmark_cufftdx_1d_batch<256, __half2, Arch>(batch, smem, e2e, default_only);
-        break;
-      case 512:
-        cufftdx_1d_batched_h_results[512] =
-            benchmark_cufftdx_1d_batch<512, __half2, Arch>(batch, smem, e2e, default_only);
-        break;
-      case 1024:
-        cufftdx_1d_batched_h_results[1024] =
-            benchmark_cufftdx_1d_batch<1024, __half2, Arch>(batch, smem, e2e, default_only);
-        break;
-      case 2048:
-        cufftdx_1d_batched_h_results[2048] =
-            benchmark_cufftdx_1d_batch<2048, __half2, Arch>(batch, smem, e2e, default_only);
-        break;
-      case 4096:
-        cufftdx_1d_batched_h_results[4096] =
-            benchmark_cufftdx_1d_batch<4096, __half2, Arch>(batch, smem, e2e, default_only);
-        break;
+      if (type == 1) {
+        cufftdx_1d_batched_h_results[n] =
+            run_cufftdx_benchmark_for_size<Arch, __half2>(n, batch, smem, e2e,
+                                                          default_only);
       }
     }
   }
 
-  printf("Batch, N, cuFFT_1D_half, cuFFT_1D_single, cuFFT_1D_double,  "
-         "cuFFTDx_1D_half, cuFFTDx_1D_single, "
-         "cuFFTDx_1D_double\n");
-  for (size_t i = 0; i < sizes.size(); ++i) {
-    printf("%d, %d, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f\n", batch, sizes[i],
-           cufft_1d_batched_h_results[sizes[i]],
-           cufft_1d_batched_results[sizes[i]],
-           cufft_1d_batched_d_results[sizes[i]],
-           cufftdx_1d_batched_h_results[sizes[i]],
-           cufftdx_1d_batched_results[sizes[i]],
-           cufftdx_1d_batched_d_results[sizes[i]]);
+  printf("Batch, N, "
+         "cuFFTDx_1D_single, cuFFTDx_1D_half\n");
+  for (size_t i = 0; i < run_sizes.size(); ++i) {
+    const int n = run_sizes[i];
+    printf("%d, %d, %.6f, %.6f\n", batch, n, cufftdx_1d_batched_results[n],
+           cufftdx_1d_batched_h_results[n]);
   }
 
   return 0;
