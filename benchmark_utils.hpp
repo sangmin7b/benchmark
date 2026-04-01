@@ -5,11 +5,11 @@
 #include <cufft.h>
 #include <cufftXt.h>
 #include <cufftdx.hpp>
+#include <limits>
 
 void checkCuda(cudaError_t err, const char *msg);
 void checkCUFFT(cufftResult res, const char *msg);
 
-// 함수 포인터 + context 구조로 시간 측정
 typedef void (*BenchmarkFunc)(void *user_data);
 
 float measure_kernel_time(BenchmarkFunc func, void *user_data, int repeat = 5);
@@ -47,6 +47,15 @@ template <> struct DataTypeToPrecision<double2> {
 
 template <> struct DataTypeToPrecision<__half2> {
   using type = cufftdx::Precision<__half>;
+};
+
+struct BenchmarkResult {
+  float time = std::numeric_limits<float>::infinity();
+  int FPB = 0; // ffts_per_block (0 = default)
+  int EPT = 0; // elements_per_thread (0 = default)
+  bool smem = false;
+
+  bool operator<(const BenchmarkResult &o) const { return time < o.time; }
 };
 
 // Ref: NVIDIA CUDALibrarySamples

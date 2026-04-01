@@ -5,13 +5,14 @@
 
 #include "cufft_benchmark.hpp"
 #include "cufftdx_benchmark.hpp"
+#include "cufftdx_tune.hpp"
 
 #ifndef ARCHNUM
 #define ARCHNUM 800
 #endif
 
 template <unsigned Arch, typename T>
-float run_cufftdx_search_for_size(int n, int batch, bool smem) {
+BenchmarkResult run_cufftdx_search_for_size(int n, int batch, bool smem) {
   switch (n) {
   case 64:
     return smem ? search_parameters<64, T, Arch, true>(batch)
@@ -35,13 +36,13 @@ float run_cufftdx_search_for_size(int n, int batch, bool smem) {
     return smem ? search_parameters<4096, T, Arch, true>(batch)
                 : search_parameters<4096, T, Arch, false>(batch);
   default:
-    return 0.0f;
+    return {};
   }
 }
 
 template <unsigned Arch, typename T>
-float run_cufftdx_benchmark_for_size(int n, int batch, bool smem, bool e2e,
-                                     bool default_only) {
+BenchmarkResult run_cufftdx_benchmark_for_size(int n, int batch, bool smem,
+                                               bool e2e, bool default_only) {
   switch (n) {
   case 64:
     return benchmark_cufftdx_1d_batch<64, T, Arch>(batch, smem, e2e,
@@ -65,7 +66,7 @@ float run_cufftdx_benchmark_for_size(int n, int batch, bool smem, bool e2e,
     return benchmark_cufftdx_1d_batch<4096, T, Arch>(batch, smem, e2e,
                                                      default_only);
   default:
-    return 0.0f;
+    return {};
   }
 }
 
@@ -128,13 +129,8 @@ int main(int argc, char **argv) {
   }
 
   int batch = 65536;
-  std::map<int, float> cufftdx_1d_batched_results;
-  std::map<int, float> cufftdx_1d_batched_h_results;
-
-  for (int n : sizes) {
-    cufftdx_1d_batched_results[n] = 0.0f;
-    cufftdx_1d_batched_h_results[n] = 0.0f;
-  }
+  std::map<int, BenchmarkResult> cufftdx_1d_batched_results;
+  std::map<int, BenchmarkResult> cufftdx_1d_batched_h_results;
 
   // Supported Functionality
   // C2C
@@ -172,11 +168,16 @@ int main(int argc, char **argv) {
   }
 
   printf("Batch, N, "
-         "cuFFTDx_1D_single, cuFFTDx_1D_half\n");
+         "cuFFTDx_1D_single(ms), FPB, EPT, smem, "
+         "cuFFTDx_1D_half(ms), FPB, EPT, smem\n");
   for (size_t i = 0; i < run_sizes.size(); ++i) {
     const int n = run_sizes[i];
-    printf("%d, %d, %.6f, %.6f\n", batch, n, cufftdx_1d_batched_results[n],
-           cufftdx_1d_batched_h_results[n]);
+    const auto &s = cufftdx_1d_batched_results[n];
+    const auto &h = cufftdx_1d_batched_h_results[n];
+    printf("%d, %d, %.6f, %d, %d, %d, %.6f, %d, %d, %d\n",
+           batch, n,
+           s.time, s.FPB, s.EPT, (int)s.smem,
+           h.time, h.FPB, h.EPT, (int)h.smem);
   }
 
   return 0;
