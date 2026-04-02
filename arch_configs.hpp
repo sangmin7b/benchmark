@@ -5,15 +5,18 @@
 
 template <unsigned N, typename T, unsigned SMNUM>
 void run_arch_configs(int batch, bool smem, int comp_repeats, int eval_repeats,
-                      BenchmarkResult &best) {
+                      BenchmarkResult &best, T* d_input, T* d_output,
+                      T* h_ref_output) {
   if constexpr (SMNUM == 800) {
     run_a100_configs<N, T, SMNUM>(batch, smem, comp_repeats, eval_repeats,
-                                  best);
+                                  best, d_input, d_output, h_ref_output);
   }
   else if constexpr (SMNUM == 900) {
-    run_h100_configs<N, T, SMNUM>(batch, smem, comp_repeats, eval_repeats, best);
+    run_h100_configs<N, T, SMNUM>(batch, smem, comp_repeats, eval_repeats,
+                                  best, d_input, d_output, h_ref_output);
   }
   else if constexpr (SMNUM == 1000) {
-    run_b200_configs<N, T, SMNUM>(batch, smem, comp_repeats, eval_repeats, best);
+    run_b200_configs<N, T, SMNUM>(batch, smem, comp_repeats, eval_repeats,
+                                  best, d_input, d_output, h_ref_output);
   }
 }

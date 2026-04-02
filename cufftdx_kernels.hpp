@@ -228,8 +228,11 @@ __global__ void thread_fft_kernel_half(__half2 *input, __half2 *output,
 template <unsigned N, typename T, unsigned FPB, unsigned EPT, unsigned SMNUM,
           bool SMEM>
 BenchmarkResult benchmark_cufftdx_1d_batch_impl(int batch,
-                                                int comp_repeats = 10000,
-                                                int eval_repeats = 5) {
+                                                int comp_repeats,
+                                                int eval_repeats,
+                                                T* d_input,
+                                                T* d_output,
+                                                T* h_ref_output) {
   if (FPB == 0) {
     printf("[cuFFTDx] 1D Batch FFT Default\n");
   } else {
@@ -253,17 +256,6 @@ BenchmarkResult benchmark_cufftdx_1d_batch_impl(int batch,
     return {};
   } else {
     float avg = std::numeric_limits<float>::infinity();
-    T *d_input, *d_output;
-    checkCuda(cudaMalloc(&d_input, sizeof(T) * N * batch), "malloc input");
-    checkCuda(cudaMalloc(&d_output, sizeof(T) * N * batch), "malloc output");
-    T *d_ref_output;
-    checkCuda(cudaMalloc(&d_ref_output, sizeof(T) * N * batch),
-              "malloc ref output");
-    T *h_input = reinterpret_cast<T *>(malloc(sizeof(T) * N * batch));
-    T *h_output = reinterpret_cast<T *>(malloc(sizeof(T) * N * batch));
-    T *h_ref_output = reinterpret_cast<T *>(malloc(sizeof(T) * N * batch));
-    generate_input_data(h_input, N, batch);
-    bool valid = false;
 
     try {
       using FFT = decltype(FFTBase() + SM<SMNUM>());
@@ -330,53 +322,18 @@ BenchmarkResult benchmark_cufftdx_1d_batch_impl(int batch,
         }
       }
       printf("Start validation\n");
-      cudaMemcpy(d_input, h_input, sizeof(T) * N * batch,
-                 cudaMemcpyHostToDevice);
-      cufftHandle plan;
-      if constexpr (std::is_same_v<T, float2>) {
-        checkCUFFT(cufftPlan1d(&plan, N, CUFFT_C2C, batch), "create plan");
-        cufftExecC2C(plan, (cufftComplex *)d_input,
-                     (cufftComplex *)d_ref_output, CUFFT_FORWARD);
-      } else if constexpr (std::is_same_v<T, double2>) {
-        checkCUFFT(cufftPlan1d(&plan, N, CUFFT_Z2Z, batch), "create plan");
-        cufftExecZ2Z(plan, (cufftDoubleComplex *)d_input,
-                     (cufftDoubleComplex *)d_ref_output, CUFFT_FORWARD);
-      } else if constexpr (std::is_same_v<T, __half2>) {
-        long long n = N;
-        long long inembed[1] = {N};
-        long long onembed[1] = {N};
-        long long istride = 1;
-        long long ostride = 1;
-        long long idist = N;
-        long long odist = N;
-        size_t workSize = 0;
-        checkCUFFT(cufftCreate(&plan), "create plan");
-        checkCUFFT(cufftXtMakePlanMany(plan, 1, &n, inembed, istride, idist,
-                                       CUDA_C_16F, onembed, ostride, odist,
-                                       CUDA_C_16F, batch, &workSize,
-                                       CUDA_C_16F),
-                   "plan1d batch");
-        cufftXtExec(plan, (cufftComplex *)d_input, (cufftComplex *)d_ref_output,
-                    CUFFT_FORWARD);
+      {
+        T *val_h_output = reinterpret_cast<T *>(malloc(sizeof(T) * N * batch));
+        int val_repeats = 1;
+        void *val_args[4] = {d_input, d_output, &batch, &val_repeats};
+        kernel(val_args);
+        cudaDeviceSynchronize();
+        checkCuda(cudaMemcpy(val_h_output, d_output, sizeof(T) * N * batch,
+                             cudaMemcpyDeviceToHost),
+                  "copy output to host");
+        validate_output(h_ref_output, val_h_output, N * batch, "cuFFTDx");
+        free(val_h_output);
       }
-      checkCuda(cudaMemcpy(h_ref_output, d_ref_output, sizeof(T) * N * batch,
-                           cudaMemcpyDeviceToHost),
-                "copy ref output to host");
-      cudaDeviceSynchronize();
-      cufftDestroy(plan);
-      int val_repeats = 1;
-      void *val_args[4] = {d_input, d_output, &batch, &val_repeats};
-      kernel(val_args);
-      cudaDeviceSynchronize();
-      checkCuda(cudaMemcpy(h_output, d_output, sizeof(T) * N * batch,
-                           cudaMemcpyDeviceToHost),
-                "copy output to host");
-      valid = validate_output(h_ref_output, h_output, N * batch, "cuFFTDx");
-      cudaFree(d_ref_output);
-      free(h_input);
-      free(h_output);
-      free(h_ref_output);
-      cudaDeviceSynchronize();
       printf("profile\n");
       if (comp_repeats == 1) {
         void *args[4] = {d_input, d_output, &batch, &comp_repeats};
@@ -393,18 +350,17 @@ BenchmarkResult benchmark_cufftdx_1d_batch_impl(int batch,
         cudaDeviceSynchronize();
         checkCuda(cudaGetLastError(), "fftdx call");
         avg = (avg2 - avg) / comp_repeats;
+        if (avg <= 0.0f) {
+          printf("Timing error: non-positive result (kernel may have failed)\n");
+          return {};
+        }
       }
       printf("Average time: %.6f ms\n", avg);
       checkCuda(cudaPeekAtLastError(), "check CUDA");
     } catch (const std::runtime_error &e) {
       printf("Error during cuFFTDx execution: %s\n", e.what());
-      cudaFree(d_input);
-      cudaFree(d_ref_output);
-      cudaFree(d_output);
       return {};
     }
-    cudaFree(d_input);
-    cudaFree(d_output);
     return {avg, (int)FPB, (int)EPT, SMEM};
   }
 }
@@ -517,6 +473,10 @@ BenchmarkResult benchmark_cufftdx_1d_batch_thread_impl(int batch,
         cudaDeviceSynchronize();
         checkCuda(cudaGetLastError(), "fftdx call");
         avg = (avg2 - avg) / comp_repeats;
+        if (avg <= 0.0f) {
+          printf("Timing error: non-positive result (kernel may have failed)\n");
+          return {};
+        }
       }
       printf("Average time: %.6f ms\n", avg);
     } catch (const std::runtime_error &e) {

@@ -1,6 +1,7 @@
 # Paths
 # MATHDX_ROOT = /home/s6/chaewon2/install/nvidia-mathdx-25.06.0/nvidia/mathdx/25.06
-MATHDX_ROOT = /home/sangmin/.local/nvidia-mathdx-25.06.0/nvidia/mathdx/25.06
+# MATHDX_ROOT = /home/sangmin/.local/nvidia-mathdx-25.06.0/nvidia/mathdx/25.06
+MATHDX_ROOT = /home/sangmin/fft/nvidia-mathdx-25.06.1/nvidia/mathdx/25.06
 
 TARGET = fft_benchmark
 SRCS = main.cu  benchmark_utils.cu
@@ -20,7 +21,8 @@ $(TARGET): $(SRCS)
 	        -gencode arch=compute_$(COMPUTE_CAPABILITY),code=sm_$(COMPUTE_CAPABILITY) \
 	        -DCUFFT_TARGET_ARCHS=$(COMPUTE_CAPABILITY)0 \
 	        -DARCHNUM=$(COMPUTE_CAPABILITY)0 \
-	        -o $@ $^ $(INCLUDES) $(LIBS)
+			-DSEARCH \
+			-o $@ $^ $(INCLUDES) $(LIBS)
 
 clean:
 	rm -f $(TARGET)

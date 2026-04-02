@@ -22,31 +22,41 @@ float measure_kernel_time(BenchmarkFunc func, void *user_data, int repeat) {
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
 
-  float warmup = 0;
-  for (int i = 0; i < repeat && warmup < 100; ++i) {
-    cudaEventRecord(start);
-    func(user_data);
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-    float ms;
-    cudaEventElapsedTime(&ms, start, stop);
-    warmup += ms;
-  }
+  // Clear any stale error from a previous failed kernel before measuring.
+  cudaGetLastError();
 
-  float total = 0;
-  for (int i = 0; i < repeat; ++i) {
-    cudaEventRecord(start);
-    func(user_data); // 함수 호출
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-    float ms;
-    cudaEventElapsedTime(&ms, start, stop);
-    total += ms;
-  }
+  try {
+    float warmup = 0;
+    for (int i = 0; i < repeat && warmup < 100; ++i) {
+      cudaEventRecord(start);
+      func(user_data);
+      cudaEventRecord(stop);
+      cudaEventSynchronize(stop);
+      float ms;
+      cudaEventElapsedTime(&ms, start, stop);
+      warmup += ms;
+    }
 
-  cudaEventDestroy(start);
-  cudaEventDestroy(stop);
-  return total / repeat;
+    float total = 0;
+    for (int i = 0; i < repeat; ++i) {
+      cudaEventRecord(start);
+      func(user_data);
+      cudaEventRecord(stop);
+      cudaEventSynchronize(stop);
+      float ms;
+      cudaEventElapsedTime(&ms, start, stop);
+      total += ms;
+    }
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    return total / repeat;
+  } catch (...) {
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    cudaGetLastError(); // clear the sticky error so subsequent runs are clean
+    throw;
+  }
 }
 
 bool validate_output(float2 *ref, float2 *target, int size, const char *tag,
